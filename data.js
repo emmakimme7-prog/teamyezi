@@ -563,6 +563,56 @@ function setAdminAuthenticated(authenticated) {
   localStorage.removeItem(STORAGE_KEYS.adminSession);
 }
 
+async function canvasToBlob(canvas, type, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob || null), type, quality);
+  });
+}
+
+async function compressImageForUpload(file, options = {}) {
+  if (!(file instanceof File)) return file;
+  if (!file.type || !file.type.startsWith("image/")) return file;
+  if (file.type === "image/gif") return file;
+
+  const {
+    maxDimension = 1600,
+    type = "image/jpeg",
+    quality = 0.82,
+    minReductionRatio = 0.85,
+    minFileSize = 800 * 1024,
+  } = options;
+
+  try {
+    if (!file.size || file.size < minFileSize) return file;
+
+    const bitmap = await createImageBitmap(file);
+    const sourceWidth = bitmap.width;
+    const sourceHeight = bitmap.height;
+    const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+    const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+    const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+
+    const blob = await canvasToBlob(canvas, type, quality);
+    if (!blob) return file;
+
+    if (blob.size >= file.size * minReductionRatio) return file;
+
+    const baseName = (file.name || "attachment").replace(/\.[^.]+$/, "");
+    const nextName = type === "image/webp" ? `${baseName}.webp` : `${baseName}.jpg`;
+    return new File([blob], nextName, { type });
+  } catch (error) {
+    console.error("Failed to compress image, using original", error);
+    return file;
+  }
+}
+
 function extendAdminSession() {
   const session = readAdminSession();
   if (!session) return false;
@@ -586,13 +636,16 @@ async function createInquiry(payload) {
       ? [payload.attachment]
       : [];
   const attachments = await Promise.all(
-    attachmentFiles.map(async (attachment, index) => ({
-      id: `attachment-${Date.now()}-${index + 1}`,
-      key: await saveMediaAsset(attachment),
-      name: attachment.name || "",
-      type: attachment.type || "",
-      size: Number(attachment.size || 0),
-    }))
+    attachmentFiles.map(async (attachment, index) => {
+      const uploadFile = await compressImageForUpload(attachment);
+      return {
+        id: `attachment-${Date.now()}-${index + 1}`,
+        key: await saveMediaAsset(uploadFile),
+        name: uploadFile?.name || attachment.name || "",
+        type: uploadFile?.type || attachment.type || "",
+        size: Number(uploadFile?.size || attachment.size || 0),
+      };
+    })
   );
   const primaryAttachment = attachments[0] || { key: "", name: "", type: "", size: 0 };
 

@@ -62,6 +62,11 @@ async function readJsonBody(request) {
   }
 }
 
+function isJsonRequest(request) {
+  const header = String(request.headers["content-type"] || "").toLowerCase();
+  return header.includes("application/json");
+}
+
 async function serveApi(request, response, url) {
   const handler = apiHandlers[url.pathname];
   if (!handler) return false;
@@ -70,7 +75,11 @@ async function serveApi(request, response, url) {
   enhanceResponse(response);
 
   try {
-    request.body = await readJsonBody(request);
+    if (isJsonRequest(request)) {
+      request.body = await readJsonBody(request);
+    } else {
+      request.body = {};
+    }
     await handler(request, response);
   } catch (error) {
     response.statusCode = 500;

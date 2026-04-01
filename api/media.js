@@ -5,6 +5,12 @@ const COLLECTION_NAME = "media_assets";
 const CHUNK_COLLECTION_NAME = "media_upload_chunks";
 const UPLOAD_COLLECTION_NAME = "media_uploads";
 
+async function readRawBody(request) {
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
 function parseDataUrl(dataUrl) {
   const match = String(dataUrl || "").match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
   if (!match) return null;
@@ -62,6 +68,24 @@ module.exports = async function handler(request, response) {
   }
 
   if (request.method === "POST") {
+    const contentType = String(request.headers["content-type"] || "").toLowerCase();
+    if (contentType.startsWith("application/octet-stream")) {
+      const name = String(request.headers["x-file-name"] || request.query?.name || "").trim();
+      const type = String(request.headers["x-file-type"] || request.query?.type || "").trim();
+      const buffer = await readRawBody(request);
+      if (!buffer || !buffer.length) {
+        return json(response, 400, { ok: false, message: "Empty upload body" });
+      }
+
+      const key = await saveBuffer({
+        name: name || "upload",
+        type: type || "application/octet-stream",
+        buffer,
+      });
+
+      return json(response, 200, { ok: true, key });
+    }
+
     const action = String(request.body?.action || "single");
     const name = String(request.body?.name || "").trim();
     const type = String(request.body?.type || "").trim();

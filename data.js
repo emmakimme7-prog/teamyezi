@@ -824,6 +824,26 @@ async function remoteRequest(path, options = {}) {
   return response.json();
 }
 
+async function uploadBinaryToRemote(file) {
+  const { apiBase } = getRemoteConfig();
+  const response = await fetch(`${apiBase}/media`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "X-File-Name": file?.name || "upload",
+      "X-File-Type": file?.type || "application/octet-stream",
+    },
+    body: file,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Remote binary upload failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 async function refreshSiteStateFromRemote(pageHint = "") {
   if (!isRemoteStorageEnabled()) {
     const indexedDbState = await readStateSnapshotFromIndexedDb();
@@ -1026,6 +1046,14 @@ async function importLocalStateToRemote() {
 
 async function saveMediaAssetToRemote(file) {
   if (!isRemoteStorageEnabled()) return "";
+
+  const preferBinary =
+    (file && file.type && file.type.startsWith("video/")) || (file && file.size && file.size >= 1024 * 1024);
+
+  if (preferBinary) {
+    const result = await uploadBinaryToRemote(file);
+    return result?.key || "";
+  }
 
   // Upload through the media API
   const uploadStrategies = [

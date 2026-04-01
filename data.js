@@ -826,6 +826,49 @@ async function remoteRequest(path, options = {}) {
 
 async function uploadBinaryToRemote(file) {
   const { apiBase } = getRemoteConfig();
+  const maxSingleBinaryUploadSize = 3 * 1024 * 1024;
+  const chunkSize = 2 * 1024 * 1024;
+
+  if (file && file.size && file.size > maxSingleBinaryUploadSize) {
+    const uploadId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
+
+    for (let index = 0; index < totalChunks; index += 1) {
+      const start = index * chunkSize;
+      const end = Math.min(file.size, start + chunkSize);
+      const chunk = file.slice(start, end);
+
+      const chunkResponse = await fetch(`${apiBase}/media`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-File-Name": file?.name || "upload",
+          "X-File-Type": file?.type || "application/octet-stream",
+          "X-Upload-Id": uploadId,
+          "X-Chunk-Index": String(index),
+          "X-Total-Chunks": String(totalChunks),
+        },
+        body: chunk,
+      });
+
+      if (!chunkResponse.ok) {
+        const message = await chunkResponse.text();
+        throw new Error(message || `Remote binary chunk upload failed: ${chunkResponse.status}`);
+      }
+    }
+
+    return remoteRequest("/media", {
+      method: "POST",
+      body: JSON.stringify({
+        action: "complete",
+        uploadId,
+        name: file?.name || "upload",
+        type: file?.type || "application/octet-stream",
+        totalChunks,
+      }),
+    });
+  }
+
   const response = await fetch(`${apiBase}/media`, {
     method: "POST",
     headers: {

@@ -72,9 +72,51 @@ module.exports = async function handler(request, response) {
     if (contentType.startsWith("application/octet-stream")) {
       const name = String(request.headers["x-file-name"] || request.query?.name || "").trim();
       const type = String(request.headers["x-file-type"] || request.query?.type || "").trim();
+      const uploadId = String(request.headers["x-upload-id"] || "").trim();
+      const chunkIndexHeader = request.headers["x-chunk-index"];
+      const totalChunksHeader = request.headers["x-total-chunks"];
       const buffer = await readRawBody(request);
       if (!buffer || !buffer.length) {
         return json(response, 400, { ok: false, message: "Empty upload body" });
+      }
+
+      if (uploadId) {
+        const chunkIndex = Number(chunkIndexHeader);
+        const totalChunks = Number(totalChunksHeader);
+        if (!Number.isInteger(chunkIndex) || !Number.isInteger(totalChunks) || totalChunks < 1) {
+          return json(response, 400, { ok: false, message: "Invalid binary chunk headers" });
+        }
+
+        await uploadCollection.updateOne(
+          { _id: uploadId },
+          {
+            $set: {
+              name: name || "upload",
+              type: type || "application/octet-stream",
+              totalChunks,
+              updatedAt: new Date(),
+            },
+            $setOnInsert: {
+              createdAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+
+        await chunkCollection.updateOne(
+          { uploadId, chunkIndex },
+          {
+            $set: {
+              uploadId,
+              chunkIndex,
+              buffer,
+              updatedAt: new Date(),
+            },
+          },
+          { upsert: true }
+        );
+
+        return json(response, 200, { ok: true });
       }
 
       const key = await saveBuffer({
@@ -164,7 +206,14 @@ module.exports = async function handler(request, response) {
         return json(response, 400, { ok: false, message: "Missing upload chunks" });
       }
 
-      const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk.base64 || "", "base64")));
+      const buffer = Buffer.concat(
+        chunks.map((chunk) => {
+          if (chunk && chunk.buffer && Buffer.isBuffer(chunk.buffer)) {
+            return chunk.buffer;
+          }
+          return Buffer.from(chunk.base64 || "", "base64");
+        })
+      );
       const key = await saveBuffer({
         name,
         type,

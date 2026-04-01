@@ -45,14 +45,14 @@ function mediaStyle(url, palette, angle) {
 }
 
 function renderVideoMarkup(url) {
-  return `<video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="auto"></video>`;
+  return `<video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="metadata"></video>`;
 }
 
 function renderVideoMarkupWithPoster(url, posterUrl = "") {
   const videoPoster = posterUrl ? ` poster="${posterUrl}"` : "";
   return `
     <div class="hero-video-shell" data-video-src="${url}" data-video-poster="${posterUrl}">
-      <video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="auto"${videoPoster}></video>
+      <video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="metadata"${videoPoster}></video>
     </div>
   `;
 }
@@ -65,6 +65,11 @@ async function dataUrlToFileFromMain(dataUrl, fileName = "poster.jpg") {
 
 function primeVideoElement(video, url) {
   if (!(video instanceof HTMLVideoElement) || !url) return;
+  if (!video.dataset || !video.dataset.fadeReady) {
+    video.style.opacity = "0";
+    video.style.transition = "opacity 240ms ease";
+    if (video.dataset) video.dataset.fadeReady = "1";
+  }
   video.muted = true;
   video.defaultMuted = true;
   video.autoplay = true;
@@ -81,6 +86,15 @@ function primeVideoElement(video, url) {
     video.load();
   }
   const tryPlay = () => video.play?.().catch(() => {});
+  const markReady = () => {
+    video.style.opacity = "1";
+  };
+  if (video.readyState >= 2) {
+    markReady();
+  } else {
+    video.addEventListener("loadeddata", markReady, { once: true });
+    video.addEventListener("canplay", markReady, { once: true });
+  }
   if (video.readyState >= 2) {
     tryPlay();
   } else {

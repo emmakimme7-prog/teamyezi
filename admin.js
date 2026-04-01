@@ -1966,8 +1966,10 @@ function renderInquiriesManagement() {
 
   const attachments = Array.isArray(current.attachments) ? current.attachments : [];
   const attachmentItems = [];
+  const seenAttachmentKeys = new Set();
 
   if (current.attachmentKey) {
+    seenAttachmentKeys.add(current.attachmentKey);
     attachmentItems.push({
       key: current.attachmentKey,
       name: current.attachmentName || "attachment",
@@ -1977,6 +1979,8 @@ function renderInquiriesManagement() {
 
   attachments.forEach((item, index) => {
     if (!item || !item.key) return;
+    if (seenAttachmentKeys.has(item.key)) return;
+    seenAttachmentKeys.add(item.key);
     attachmentItems.push({
       key: item.key,
       name: item.name || `attachment-${index + 1}`,

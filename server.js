@@ -69,8 +69,20 @@ async function serveApi(request, response, url) {
   request.query = Object.fromEntries(url.searchParams.entries());
   enhanceResponse(response);
 
-  request.body = await readJsonBody(request);
-  await handler(request, response);
+  try {
+    request.body = await readJsonBody(request);
+    await handler(request, response);
+  } catch (error) {
+    response.statusCode = 500;
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.setHeader("Cache-Control", "no-store");
+    response.end(
+      JSON.stringify({
+        ok: false,
+        message: error instanceof Error ? error.message : "API handler failed",
+      })
+    );
+  }
   return true;
 }
 

@@ -344,8 +344,34 @@ async function compressVideoForUpload(file, options = {}) {
 }
 
 async function createVideoUploadPlan(file) {
-  // 원본 품질 그대로 업로드
-  return [{ file, label: "original" }];
+  try {
+    const optimized = await compressVideoForUpload(file, {
+      maxWidth: 1280,
+      fps: 24,
+      videoBitsPerSecond: 1_600_000,
+      minReductionRatio: 0.85,
+      minFileSize: 12 * 1024 * 1024,
+    });
+
+    const isOptimized =
+      optimized &&
+      optimized !== file &&
+      optimized.size &&
+      file.size &&
+      optimized.size < file.size * 0.9;
+
+    if (isOptimized) {
+      return [
+        { file: optimized, label: "optimized" },
+        { file, label: "original" },
+      ];
+    }
+
+    return [{ file, label: "original" }];
+  } catch (error) {
+    console.error("Failed to prepare optimized video, using original", error);
+    return [{ file, label: "original" }];
+  }
 }
 
 function renderVideoMarkup(url) {
@@ -1937,6 +1963,48 @@ function renderInquiriesManagement() {
   });
   const current =
     filteredInquiries.find((inquiry) => inquiry.id === selectedInquiryId) || filteredInquiries[0] || selectedInquiry();
+
+  const attachments = Array.isArray(current.attachments) ? current.attachments : [];
+  const attachmentItems = [];
+
+  if (current.attachmentKey) {
+    attachmentItems.push({
+      key: current.attachmentKey,
+      name: current.attachmentName || "attachment",
+      type: current.attachmentType || "image",
+    });
+  }
+
+  attachments.forEach((item, index) => {
+    if (!item || !item.key) return;
+    attachmentItems.push({
+      key: item.key,
+      name: item.name || `attachment-${index + 1}`,
+      type: item.type || "image",
+    });
+  });
+
+  const attachmentMarkup = attachmentItems.length
+    ? `
+      <div class="wide-row">
+        <div style="font-weight:600; margin-bottom:10px;">첨부 이미지</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          ${attachmentItems
+            .map(
+              (item) => `
+                <a href="/api/media-file?key=${encodeURIComponent(item.key)}" target="_blank" rel="noreferrer noopener" style="display:block; width:120px; text-decoration:none; color:inherit;">
+                  <div class="preview-image" data-media-key="${item.key}" data-media-type="${String(item.type || "image").startsWith("video/") ? "video" : "image"}"></div>
+                  <div style="margin-top:6px; font-size:12px; opacity:0.72; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(
+                    item.name
+                  )}</div>
+                </a>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    `
+    : "";
   const inquiryRows = filteredInquiries
     .map(
       (inquiry, index) => `
@@ -1980,6 +2048,7 @@ function renderInquiriesManagement() {
         <label>담당자 연락처<input id="inquiry-contact" value="${current.contact}"></label>
         <label>브랜드명<input id="inquiry-brand" value="${current.brand}"></label>
         <label class="wide-row">내용<textarea id="inquiry-content" rows="4">${current.content}</textarea></label>
+        ${attachmentMarkup}
         <label>관리자 이름<input id="inquiry-manager" value="${current.manager}"></label>
         <label class="wide-row">의견<textarea id="inquiry-memo" rows="4">${current.memo}</textarea></label>
       </div>
@@ -1988,6 +2057,8 @@ function renderInquiriesManagement() {
   `;
 
   adminApp.innerHTML = shellTemplate("inquiries", "문의 관리", content);
+
+  hydrateStoredMedia(adminApp);
 
   document.querySelectorAll("[data-inquiry-id]").forEach((row) => {
     row.addEventListener("click", () => {

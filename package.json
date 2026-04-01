@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node server.js",
+    "ship": "node ../_shared/ship.mjs -- vercel --prod --yes",
     "deploy:linked": "node scripts/deploy-linked.mjs"
   },
   "dependencies": {

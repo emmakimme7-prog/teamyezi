@@ -1029,9 +1029,9 @@ async function saveMediaAssetToRemote(file) {
 
   // Upload through the media API
   const uploadStrategies = [
-    { singleUploadLimit: 96 * 1024, chunkSize: 96 * 1024 },
-    { singleUploadLimit: 64 * 1024, chunkSize: 64 * 1024 },
-    { singleUploadLimit: 32 * 1024, chunkSize: 32 * 1024 },
+    { singleUploadLimit: 512 * 1024, chunkSize: 512 * 1024 },
+    { singleUploadLimit: 256 * 1024, chunkSize: 256 * 1024 },
+    { singleUploadLimit: 128 * 1024, chunkSize: 128 * 1024 },
   ];
   let lastError = null;
 

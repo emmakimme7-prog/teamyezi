@@ -345,20 +345,24 @@ async function compressVideoForUpload(file, options = {}) {
 
 async function createVideoUploadPlan(file) {
   try {
-    const optimized = await compressVideoForUpload(file, {
-      maxWidth: 960,
-      fps: 20,
-      videoBitsPerSecond: 900_000,
-      minReductionRatio: 0.8,
-      minFileSize: 6 * 1024 * 1024,
-    });
+    const compressionTimeoutMs = 15_000;
+    const optimized = await Promise.race([
+      compressVideoForUpload(file, {
+        maxWidth: 960,
+        fps: 20,
+        videoBitsPerSecond: 900_000,
+        minReductionRatio: 0.8,
+        minFileSize: 6 * 1024 * 1024,
+      }),
+      new Promise((resolve) => setTimeout(() => resolve(null), compressionTimeoutMs)),
+    ]);
 
     const isOptimized =
       optimized &&
       optimized !== file &&
       optimized.size &&
       file.size &&
-      optimized.size < file.size * 0.9;
+      optimized.size < file.size;
 
     if (isOptimized) {
       return [

@@ -1,0 +1,12 @@
+{
+  "name": "teamyezi",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js",
+    "deploy:linked": "node scripts/deploy-linked.mjs"
+  },
+  "dependencies": {
+    "mongodb": "^6.16.0"
+  }
+}

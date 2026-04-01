@@ -640,20 +640,21 @@ function initScrollEffects(root = document) {
   scrollParallaxHandler();
 }
 
-function renderPage() {
+function renderPage(options = {}) {
+  const enableEffects = options.enableEffects !== false;
   if (page === "home") renderHome();
   if (page === "about") renderAbout();
   if (page === "contact") renderContact();
   if (page === "work") renderWork();
   if (page === "work-detail") renderWorkDetail();
-  initScrollEffects(document);
+  if (enableEffects) initScrollEffects(document);
 }
 
 async function bootPage() {
-  renderPage();
+  renderPage({ enableEffects: false });
   const remoteState = await refreshSiteStateFromRemote(page);
   siteState = remoteState;
-  renderPage();
+  renderPage({ enableEffects: true });
   if (page === "home") backfillHeroPoster("main");
   if (page === "about") backfillHeroPoster("about");
 }

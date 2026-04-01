@@ -346,11 +346,11 @@ async function compressVideoForUpload(file, options = {}) {
 async function createVideoUploadPlan(file) {
   try {
     const optimized = await compressVideoForUpload(file, {
-      maxWidth: 1280,
-      fps: 24,
-      videoBitsPerSecond: 1_600_000,
-      minReductionRatio: 0.85,
-      minFileSize: 12 * 1024 * 1024,
+      maxWidth: 960,
+      fps: 20,
+      videoBitsPerSecond: 900_000,
+      minReductionRatio: 0.8,
+      minFileSize: 6 * 1024 * 1024,
     });
 
     const isOptimized =

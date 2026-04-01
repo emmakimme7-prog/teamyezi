@@ -45,14 +45,14 @@ function mediaStyle(url, palette, angle) {
 }
 
 function renderVideoMarkup(url) {
-  return `<video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="metadata"></video>`;
+  return `<video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="auto"></video>`;
 }
 
 function renderVideoMarkupWithPoster(url, posterUrl = "") {
   const videoPoster = posterUrl ? ` poster="${posterUrl}"` : "";
   return `
     <div class="hero-video-shell" data-video-src="${url}" data-video-poster="${posterUrl}">
-      <video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="metadata"${videoPoster}></video>
+      <video src="${url}" autoplay muted loop playsinline webkit-playsinline preload="auto"${videoPoster}></video>
     </div>
   `;
 }

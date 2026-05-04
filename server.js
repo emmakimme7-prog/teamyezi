@@ -5,6 +5,7 @@ const { URL } = require("url");
 
 const ROOT = __dirname;
 const PORT = Number(process.env.PORT || 8080);
+const MAINTENANCE_MODE = String(process.env.MAINTENANCE_MODE ?? "true").toLowerCase() === "true";
 
 const apiHandlers = {
   "/api/site-state": require("./api/site-state"),
@@ -34,6 +35,7 @@ const PAGE_ROUTES = {
   "/work": "work.html",
   "/work-detail": "work-detail.html",
 };
+const MAINTENANCE_PATH = safeJoin(ROOT, "maintenance.html");
 
 function enhanceResponse(response) {
   response.status = function status(code) {
@@ -113,6 +115,39 @@ function resolveStaticPath(urlPath) {
   return safeJoin(ROOT, directPath.replace(/^\/+/, ""));
 }
 
+function isPublicPageRequest(urlPath) {
+  return Object.prototype.hasOwnProperty.call(PAGE_ROUTES, urlPath) && urlPath !== "/admin";
+}
+
+function isAdminAssetRequest(urlPath) {
+  return urlPath === "/admin.css" || urlPath === "/admin.js";
+}
+
+function shouldServeMaintenance(urlPath) {
+  if (!MAINTENANCE_MODE) return false;
+  if (urlPath === "/health" || urlPath === "/api/health") return false;
+  if (urlPath.startsWith("/api/")) return false;
+  if (urlPath === "/admin" || isAdminAssetRequest(urlPath)) return false;
+  return isPublicPageRequest(urlPath);
+}
+
+function serveMaintenance(response) {
+  if (!MAINTENANCE_PATH || !fs.existsSync(MAINTENANCE_PATH)) {
+    response.statusCode = 503;
+    response.setHeader("Content-Type", "text/plain; charset=utf-8");
+    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Retry-After", "3600");
+    response.end("TY is preparing a new experience. Please check back soon.");
+    return;
+  }
+
+  response.statusCode = 503;
+  response.setHeader("Content-Type", "text/html; charset=utf-8");
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Retry-After", "3600");
+  fs.createReadStream(MAINTENANCE_PATH).pipe(response);
+}
+
 function readForwardedProto(request) {
   const value = String(request.headers["x-forwarded-proto"] || "");
   return value.split(",")[0].trim().toLowerCase();
@@ -152,6 +187,11 @@ const server = http.createServer(async (request, response) => {
           time: new Date().toISOString(),
         })
       );
+      return;
+    }
+
+    if (shouldServeMaintenance(url.pathname)) {
+      serveMaintenance(response);
       return;
     }
 
